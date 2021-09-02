@@ -6,12 +6,15 @@
 
 import cv2 as cv
 import argparse
+import time
 import sys
 import numpy as np
 import os.path
 import os
 from utils.color_recognition_api import color_histogram_feature_extraction as color_extractor
 from utils.color_recognition_api import knn_classifier as knn
+
+begin = time.time()
 
 # Initialize the parameters
 confThreshold = 0.5  #Confidence threshold
@@ -83,21 +86,24 @@ def postprocess(frame, outs):
     boxes = []
     # Scan through all the bounding boxes output from the network and keep only the
     # ones with high confidence scores. Assign the box's class label as the class with the highest score.
-    for out in outs:
-        for detection in out:
-            scores = detection[5:]
-            classId = np.argmax(scores)
-            confidence = scores[classId]
-            if confidence > confThreshold:
-                center_x = int(detection[0] * frameWidth)
-                center_y = int(detection[1] * frameHeight)
-                width = int(detection[2] * frameWidth)
-                height = int(detection[3] * frameHeight)
-                left = int(center_x - width / 2)
-                top = int(center_y - height / 2)
-                classIds.append(classId)
-                confidences.append(float(confidence))
-                boxes.append([left, top, width, height])
+    if len(outs)!=0:
+        for out in outs:
+            if out.size!=0:
+                for detection in out:
+                    if detection.size!=0:
+                        scores = detection[5:]
+                        classId = np.argmax(scores)
+                        confidence = scores[classId]
+                        if confidence > confThreshold:
+                            center_x = int(detection[0] * frameWidth)
+                            center_y = int(detection[1] * frameHeight)
+                            width = int(detection[2] * frameWidth)
+                            height = int(detection[3] * frameHeight)
+                            left = int(center_x - width / 2)
+                            top = int(center_y - height / 2)
+                            classIds.append(classId)
+                            confidences.append(float(confidence))
+                            boxes.append([left, top, width, height])
 
     # Perform non maximum suppression to eliminate redundant overlapping boxes with
     # lower confidences.
@@ -113,8 +119,10 @@ def postprocess(frame, outs):
         # Predict color from detected object. Crop it first!
         crop = frame[top:top+height, left:left+width]
         color_extractor.color_histogram_of_test_image(crop)
-        color_pred = knn.main('data/training.data', 'data/test.data')
-        drawPred(classIds[i], confidences[i], left, top, left + width, top + height, color_pred)
+        file_path = 'data/test.data'
+        if os.stat(file_path).st_size != 0:
+            color_pred = knn.main('data/training.data', 'data/test.data')
+            drawPred(classIds[i], confidences[i], left, top, left + width, top + height, color_pred)
 
 # Process inputs
 winName = 'Deep learning object detection in OpenCV'
@@ -182,3 +190,5 @@ while cv.waitKey(1) < 0:
 
     cv.imshow(winName, frame)
 
+end = time.time()
+print(f"Total runtime of the program is {end - begin}")
